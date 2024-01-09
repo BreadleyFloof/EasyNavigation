@@ -6,7 +6,7 @@ using HarmonyLib;
 public class EasyNavigation : BaseUnityPlugin {
 	public const string modGUID = "BREADFPV.EasyNavigation";
 	private const string modName = "EasyNavigation";
-	private const string modVersion = "0.0.1";
+	private const string modVersion = "0.1.0";
 
 	private readonly Harmony harmony = new Harmony("BREADFPV.EasyNavigation");
 
