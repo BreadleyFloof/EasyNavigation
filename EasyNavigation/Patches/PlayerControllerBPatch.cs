@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using BepInEx.Logging;
 using GameNetcodeStuff;
@@ -9,10 +10,12 @@ using UnityEngine.InputSystem;
 [HarmonyPatch(typeof(PlayerControllerB))]
 internal class PlayerControllerBPatch {
 	private static GameObject trailObject;
+	private static GameObject guiObject;
 	private static TrailRenderer tr;
 	private static ManualLogSource mls;
 
-	private static bool isPermanentTrailEnabled = false;
+	public static bool isPermanentTrailEnabled = false;
+	public static bool showGUI = false;
 	private static float debounceTime = 0.5f;
 	private static float lastToggleTime = 0f;
 
@@ -20,33 +23,85 @@ internal class PlayerControllerBPatch {
 	[HarmonyPostfix]
 	private static async void SpawnTrailRenderer() {
 		await WaitSeconds();
+
 		mls = BepInEx.Logging.Logger.CreateLogSource("BREADFPV.EasyNavigation");
+
 		if (trailObject == null) {
 			trailObject = new GameObject("TrailObject");
 			trailObject.transform.parent = GameNetworkManager.Instance.localPlayerController.thisPlayerModel.transform;
 			trailObject.transform.localPosition = Vector3.zero;
 			trailObject.transform.localPosition = new Vector3(22.28f, 0.16f, -11.6f);
+
 			tr = trailObject.AddComponent<TrailRenderer>();
-			tr.startColor = Color.white;
-			tr.endColor = Color.green;
-			tr.startWidth = 0.1f;
-			tr.endWidth = 0.1f;
-			tr.time = float.PositiveInfinity;
+			Material trailMaterial = tr.GetComponent<Renderer>().material;
+			trailMaterial.EnableKeyword("_EMISSION");
+			trailMaterial.shader = Shader.Find("HDRP/Lit");
+
+			Dictionary<string, Color> namedColors = new Dictionary<string, Color> {
+				{"black", Color.black},
+				{"blue", Color.blue},
+				{"clear", Color.clear},
+				{"cyan", Color.cyan},
+				{"gray", Color.gray},
+				{"green", Color.green},
+				{"grey", Color.grey},
+				{"magenta", Color.magenta},
+				{"red", Color.red},
+				{"white", Color.white},
+				{"yellow", Color.yellow}
+			};
+
+			Color color;
+			if (!namedColors.TryGetValue(EasyNavigation.trailColor.Value.ToLower(), out color)) {
+				ColorUtility.TryParseHtmlString(EasyNavigation.trailColor.Value, out color);
+			}
+
+			mls.LogInfo("Color: " + color);
+			trailMaterial.SetColor("_BaseColor", color);
+			trailMaterial.SetColor("_EmissiveColor", color);
+
+			trailMaterial.SetFloat("_EmissiveIntensity", 4.0f);
+			trailMaterial.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+			tr.startWidth = EasyNavigation.trailWidth.Value;
+			tr.endWidth = EasyNavigation.trailWidth.Value;
+			tr.time = EasyNavigation.trailDuration.Value;
+
 			mls.LogInfo("EasyNavigation has loaded the TrailRenderer!");
+		}
+
+		if (guiObject == null) {
+			guiObject = new GameObject("GUIObject");
+			guiObject.AddComponent<GUIHandler.HandleGUI>();
+
+			mls.LogInfo("EasyNavigation has loaded the GUIObject!");
 		}
 	}
 
 	[HarmonyPatch("Update")]
 	[HarmonyPostfix]
-	private static void UpdateLineRenderer() {
-		if (Time.time - lastToggleTime > debounceTime && Keyboard.current.oKey.wasReleasedThisFrame) {
-			isPermanentTrailEnabled = !isPermanentTrailEnabled;
-			lastToggleTime = Time.time;
-			Debug.Log("isPermanentTrailEnabled: " + isPermanentTrailEnabled);
+	private static async void UpdateLineRenderer() {
+		await WaitSeconds();
+
+		string permanentTrailBindingKey = EasyNavigation.permanentTrailBinding.Value;
+		bool validPermanentTrailBindingKey = Enum.TryParse<Key>(permanentTrailBindingKey, true, out Key permanentTrailBindingUserKey);
+
+		if (Time.time - lastToggleTime > debounceTime) {
+			if (validPermanentTrailBindingKey && Keyboard.current[permanentTrailBindingUserKey].wasReleasedThisFrame) {
+				isPermanentTrailEnabled = !isPermanentTrailEnabled;
+				lastToggleTime = Time.time;
+				Debug.Log("isPermanentTrailEnabled: " + isPermanentTrailEnabled);
+			}
+			showGUI = false;
+		} else {
+			showGUI = true;
 		}
+
+		string clearTrailBindingKey = EasyNavigation.clearTrailBinding.Value;
+		bool validClearTrailBindingKey = Enum.TryParse<Key>(clearTrailBindingKey, true, out Key clearTrailBindingUserKey);
+
 		if (GameNetworkManager.Instance.localPlayerController.isInsideFactory) {
 			trailObject.SetActive(true);
-			if (Keyboard.current.iKey.wasReleasedThisFrame) {
+			if (validClearTrailBindingKey && Keyboard.current[clearTrailBindingUserKey].wasReleasedThisFrame) {
 				tr.Clear();
 			}
 		} else {
