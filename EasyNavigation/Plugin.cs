@@ -8,7 +8,7 @@ using UnityEngine;
 public class EasyNavigation : BaseUnityPlugin {
 	public const string modGUID = "BREADFPV.EasyNavigation";
 	private const string modName = "EasyNavigation";
-	private const string modVersion = "0.2.0";
+	private const string modVersion = "0.2.3";
 
 	public static ConfigEntry<float> trailDuration;
 	public static ConfigEntry<string> permanentTrailBinding;
