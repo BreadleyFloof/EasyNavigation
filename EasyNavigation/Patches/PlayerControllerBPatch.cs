@@ -15,16 +15,25 @@ internal class PlayerControllerBPatch {
 	private static ManualLogSource mls;
 
 	public static bool isPermanentTrailEnabled = false;
-	public static bool showGUI = false;
+	public static bool showPermanentTrailGUI = false;
 	private static float debounceTime = 0.5f;
 	private static float lastToggleTime = 0f;
+
+	public static bool showOutsideTrailGUI = false;
+	public static bool isOutsideTrailEnabled = false;
+	public static bool playerInsideHangarShip = false;
+	private static bool lastFramePlayerInsideFactory = false;
+
+	public static bool trailEnabled;
 
 	[HarmonyPatch("Awake")]
 	[HarmonyPostfix]
 	private static async void SpawnTrailRenderer() {
+		trailEnabled = EasyNavigation.trailEnabled.Value;
+		if (!trailEnabled) return;
 		await WaitSeconds();
 
-		mls = BepInEx.Logging.Logger.CreateLogSource("BREADFPV.EasyNavigation");
+		mls = BepInEx.Logging.Logger.CreateLogSource(EasyNavigation.modGUID);
 
 		if (trailObject == null) {
 			trailObject = new GameObject("TrailObject");
@@ -80,35 +89,72 @@ internal class PlayerControllerBPatch {
 	[HarmonyPatch("Update")]
 	[HarmonyPostfix]
 	private static async void UpdateLineRenderer() {
+		if (!trailEnabled) return;
 		await WaitSeconds();
 
 		string permanentTrailBindingKey = EasyNavigation.permanentTrailBinding.Value;
 		bool validPermanentTrailBindingKey = Enum.TryParse<Key>(permanentTrailBindingKey, true, out Key permanentTrailBindingUserKey);
 
+		string outsideTrailBindingKey = EasyNavigation.outsideTrailBinding.Value;
+		bool validOutsideTrailBindingKey = Enum.TryParse<Key>(outsideTrailBindingKey, true, out Key outsideTrailBindingUserKey);
+
 		if (Time.time - lastToggleTime > debounceTime) {
 			if (validPermanentTrailBindingKey && Keyboard.current[permanentTrailBindingUserKey].wasReleasedThisFrame) {
 				isPermanentTrailEnabled = !isPermanentTrailEnabled;
 				lastToggleTime = Time.time;
-				Debug.Log("isPermanentTrailEnabled: " + isPermanentTrailEnabled);
+				showPermanentTrailGUI = true;
+			} else {
+				showPermanentTrailGUI = false;
 			}
-			showGUI = false;
-		} else {
-			showGUI = true;
+
+			if (validOutsideTrailBindingKey && Keyboard.current[outsideTrailBindingUserKey].wasReleasedThisFrame) {
+				isOutsideTrailEnabled = !isOutsideTrailEnabled;
+				lastToggleTime = Time.time;
+				showOutsideTrailGUI = true;
+			} else {
+				showOutsideTrailGUI = false;
+			}
 		}
 
 		string clearTrailBindingKey = EasyNavigation.clearTrailBinding.Value;
 		bool validClearTrailBindingKey = Enum.TryParse<Key>(clearTrailBindingKey, true, out Key clearTrailBindingUserKey);
 
-		if (GameNetworkManager.Instance.localPlayerController.isInsideFactory) {
-			trailObject.SetActive(true);
-			if (validClearTrailBindingKey && Keyboard.current[clearTrailBindingUserKey].wasReleasedThisFrame) {
+		bool playerInsideFactory = GameNetworkManager.Instance.localPlayerController.isInsideFactory;
+		playerInsideHangarShip = GameNetworkManager.Instance.localPlayerController.isInHangarShipRoom;
+
+		if (validClearTrailBindingKey && Keyboard.current[clearTrailBindingUserKey].wasPressedThisFrame) {
+			tr.Clear();
+		}
+
+		if (playerInsideHangarShip && !isPermanentTrailEnabled) {
+			tr.Clear();
+		}
+
+		// Clear the trail if entering or exiting the factory and permanent trail is not enabled
+		if (!isPermanentTrailEnabled) {
+			if (playerInsideFactory != lastFramePlayerInsideFactory) {
 				tr.Clear();
 			}
+		}
+
+		// Update the lastFramePlayerInsideFactory
+		lastFramePlayerInsideFactory = playerInsideFactory;
+
+		// Handling trail visibility based on conditions
+		if (playerInsideFactory) {
+			trailObject.SetActive(true); // Trail is always active inside the factory
 		} else {
-			if (!isPermanentTrailEnabled) {
-				tr.Clear();
+			if (isOutsideTrailEnabled && !playerInsideHangarShip) {
+				trailObject.SetActive(true);
+			} else {
+				trailObject.SetActive(false);
 			}
-			trailObject.SetActive(false);
+		}
+
+		// Additional case: Both bools are false
+		if (!isPermanentTrailEnabled && !isOutsideTrailEnabled && !playerInsideFactory) {
+			trailObject.SetActive(false); // Deactivate the trail outside the factory
+			tr.Clear();
 		}
 	}
 

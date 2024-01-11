@@ -8,24 +8,39 @@ using UnityEngine.InputSystem.Controls;
 namespace GUIHandler {
     public class HandleGUI : MonoBehaviour {
 		private void OnGUI() {
-			string permanentTrailText;
+			string permanentTrailGUIText;
+			string outsideTrailGUIText;
 
 			switch (PlayerControllerBPatch.isPermanentTrailEnabled) {
 				case true:
-					permanentTrailText = "Permanent Trail Enabled!";
+					permanentTrailGUIText = "Permanent Trail Enabled!";
 					break;
 				case false:
-					permanentTrailText = "Permanent Trail Disabled!";
+					permanentTrailGUIText = "Permanent Trail Disabled!";
 					break;
 				default:
-					permanentTrailText = "Permanent Trail Unknown";
+					permanentTrailGUIText = "Permanent Trail Unknown";
 					break;
 			}
 
-			if (PlayerControllerBPatch.showGUI) {
-				GUI.Box(new Rect((Screen.width - 175) / 2, ((Screen.height - 30) / 2) / 8.4f, 175, 30), permanentTrailText);
-			} else {
-				return;
+			switch (PlayerControllerBPatch.isOutsideTrailEnabled) {
+				case true:
+					outsideTrailGUIText = "Outside Trail Enabled!";
+					break;
+				case false:
+					outsideTrailGUIText = "Outside Trail Disabled!";
+					break;
+				default:
+					outsideTrailGUIText = "Outside Trail Unknown";
+					break;
+			}
+
+			if (PlayerControllerBPatch.showPermanentTrailGUI) {
+				GUI.Box(new Rect((Screen.width - 175) / 2, ((Screen.height - 30) / 2) / 8.4f, 175, 30), permanentTrailGUIText);
+			}
+
+			if (PlayerControllerBPatch.showOutsideTrailGUI) {
+				GUI.Box(new Rect((Screen.width - 175) / 2, ((Screen.height - 30) / 2) / 8.4f, 175, 30), outsideTrailGUIText);
 			}
 		}
 	}
